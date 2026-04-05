@@ -28,28 +28,47 @@ export default function MessageBubble({
   }
 
   return (
-    <View style={isUser ? styles.userContainer : styles.aiContainer}>
-      <Text style={styles.text}>{text}</Text>
+    <View style={isUser ? styles.userWrapper : styles.aiWrapper}>
+      <View style={isUser ? styles.userBubble : styles.aiBubble}>
+        <Text style={styles.text}>{text}</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  userContainer: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#2563eb',
-    padding: 12,
-    borderRadius: 14,
-    maxWidth: '80%',
+  userWrapper: {
+    alignItems: 'flex-end',
   },
-  aiContainer: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#374151',
-    padding: 12,
-    borderRadius: 14,
-    maxWidth: '80%',
+  aiWrapper: {
+    alignItems: 'flex-start',
+  },
+  userBubble: {
+    backgroundColor: '#262626',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    borderBottomRightRadius: 6,
+    maxWidth: '78%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  aiBubble: {
+    backgroundColor: 'rgba(26,26,26,0.9)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    borderBottomLeftRadius: 6,
+    maxWidth: '78%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(142,255,113,0.3)',
   },
   text: {
-    color: 'white',
+    color: '#ffffff',
+    fontSize: 14,
+    lineHeight: 20,
+    letterSpacing: 0.1,
   },
 });

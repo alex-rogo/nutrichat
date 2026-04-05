@@ -43,3 +43,5 @@ app-example
 /android
 
 backend/.env
+
+/lib

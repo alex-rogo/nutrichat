@@ -1,141 +1,184 @@
 import { supabase } from '@/lib/supabase';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import {
+    KeyboardAvoidingView,
+    Platform,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const insets = useSafeAreaInsets();
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]   = useState(false);
 
   const handleSignUp = async () => {
     if (!email || !password) return;
-
     setLoading(true);
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
+    const { error } = await supabase.auth.signUp({ email, password });
     setLoading(false);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    alert('Account created. If email confirmation is enabled, check your email.');
+    if (error) { alert(error.message); return; }
+    alert('Account created. Check your email if confirmation is enabled.');
   };
 
   const handleSignIn = async () => {
     if (!email || !password) return;
-
     setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-
-    if (error) {
-      alert(error.message);
-    }
+    if (error) alert(error.message);
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>NutriChat</Text>
-      <Text style={styles.subtitle}>Sign in or create an account</Text>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={[styles.container, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 }]}>
+        {/* Ambient glow behind the form */}
+        <View style={styles.ambientGreen} />
+        <View style={styles.ambientCyan} />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#94a3b8"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
+        {/* Brand */}
+        <View style={styles.brandBlock}>
+          <Text style={styles.brandName}>NutriChat</Text>
+          <Text style={styles.brandTagline}>Track what you eat. Stay in the zone.</Text>
+        </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#94a3b8"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+        {/* Form card */}
+        <View style={styles.card}>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="rgba(173,170,170,0.4)"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="rgba(173,170,170,0.4)"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
 
-      <TouchableOpacity style={styles.primaryButton} onPress={handleSignIn} disabled={loading}>
-        <Text style={styles.primaryButtonText}>
-          {loading ? 'Loading...' : 'Sign In'}
-        </Text>
-      </TouchableOpacity>
+          <TouchableOpacity onPress={handleSignIn} disabled={loading} activeOpacity={0.85}>
+            <LinearGradient
+              colors={['#8eff71', '#2ff801']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.primaryButton}
+            >
+              <Text style={styles.primaryButtonText}>
+                {loading ? 'Signing in…' : 'Sign In'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
-      <TouchableOpacity style={styles.secondaryButton} onPress={handleSignUp} disabled={loading}>
-        <Text style={styles.secondaryButtonText}>Create Account</Text>
-      </TouchableOpacity>
-    </View>
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleSignUp} disabled={loading} activeOpacity={0.75}>
+            <Text style={styles.secondaryButtonText}>Create Account</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#0e0e0e',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
     paddingHorizontal: 24,
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  title: {
-    color: 'white',
-    fontSize: 34,
-    fontWeight: '700',
-    marginBottom: 8,
+  ambientGreen: {
+    position: 'absolute',
+    top: -80, left: -60,
+    width: 280, height: 280,
+    borderRadius: 999,
+    backgroundColor: 'rgba(142,255,113,0.06)',
   },
-  subtitle: {
-    color: '#cbd5e1',
-    fontSize: 16,
-    marginBottom: 28,
+  ambientCyan: {
+    position: 'absolute',
+    bottom: 40, right: -80,
+    width: 220, height: 220,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,227,253,0.04)',
+  },
+  brandBlock: {
+    marginBottom: 40,
+  },
+  brandName: {
+    color: '#8eff71',
+    fontSize: 38,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+    lineHeight: 42,
+  },
+  brandTagline: {
+    color: '#767575',
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 6,
+    letterSpacing: 0.1,
+  },
+  card: {
+    backgroundColor: '#141414',
+    borderRadius: 28,
+    padding: 20,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   input: {
-    backgroundColor: '#1e293b',
-    color: 'white',
-    borderRadius: 14,
+    backgroundColor: '#1a1a1a',
+    color: '#ffffff',
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 14,
+    paddingVertical: 15,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   primaryButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 16,
+    paddingVertical: 15,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
+    shadowColor: '#8eff71',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
   },
   primaryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
+    color: '#064200',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
   secondaryButton: {
-    backgroundColor: '#1e293b',
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: 15,
     alignItems: 'center',
-    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   secondaryButtonText: {
-    color: 'white',
-    fontSize: 16,
+    color: '#adaaaa',
+    fontSize: 15,
     fontWeight: '600',
   },
 });

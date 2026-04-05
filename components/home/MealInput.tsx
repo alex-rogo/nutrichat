@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 type MealInputProps = {
   onSend: (text: string) => void;
@@ -10,9 +16,7 @@ export default function MealInput({ onSend }: MealInputProps) {
 
   const handleSend = () => {
     const trimmed = input.trim();
-
     if (!trimmed) return;
-
     onSend(trimmed);
     setInput('');
   };
@@ -20,15 +24,21 @@ export default function MealInput({ onSend }: MealInputProps) {
   return (
     <View style={styles.container}>
       <TextInput
-        placeholder="Type what you ate..."
-        placeholderTextColor="#888"
+        placeholder="Tell NutriChat what you ate..."
+        placeholderTextColor="rgba(173,170,170,0.4)"
         style={styles.input}
         value={input}
         onChangeText={setInput}
+        onSubmitEditing={handleSend}
+        returnKeyType="send"
+        multiline={false}
       />
-
-      <TouchableOpacity style={styles.button} onPress={handleSend}>
-        <Text style={styles.buttonText}>Send</Text>
+      <TouchableOpacity
+        style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]}
+        onPress={handleSend}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.sendIcon}>↑</Text>
       </TouchableOpacity>
     </View>
   );
@@ -37,26 +47,45 @@ export default function MealInput({ onSend }: MealInputProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    gap: 10,
     alignItems: 'center',
+    backgroundColor: 'rgba(26,26,26,0.9)',
+    borderRadius: 99,
+    paddingLeft: 18,
+    paddingRight: 6,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    gap: 8,
   },
   input: {
     flex: 1,
-    backgroundColor: '#1f2937',
-    color: 'white',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
+    color: '#ffffff',
+    fontSize: 14,
+    letterSpacing: 0.1,
+    paddingVertical: 8,
+    // No background, no border — floats inside the pill
   },
-  button: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 14,
+  sendButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 99,
+    backgroundColor: '#8eff71',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#8eff71',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  buttonText: {
-    color: 'white',
-    fontWeight: '600',
+  sendButtonDisabled: {
+    backgroundColor: '#262626',
+    shadowOpacity: 0,
+  },
+  sendIcon: {
+    color: '#064200',
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 20,
   },
 });

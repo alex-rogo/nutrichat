@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { ChatMessage } from '@/types/chat';
 import { useEffect, useRef, useState } from 'react';
 import {
+    Keyboard,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -22,16 +23,12 @@ type Props = {
   initialMeals: any[];
 };
 
-export default function ChatSection({
-  onConfirmMeal,
-  initialMeals,
-}: Props) {
+export default function ChatSection({ onConfirmMeal, initialMeals }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (!initialMeals) return;
-
     const loadedMessages: ChatMessage[] = initialMeals.map((meal) => ({
       id: meal.id,
       isUser: false,
@@ -44,7 +41,6 @@ export default function ChatSection({
       },
       confirmed: true,
     }));
-
     setMessages(loadedMessages);
   }, [initialMeals]);
 
@@ -52,23 +48,22 @@ export default function ChatSection({
     const timer = setTimeout(() => {
       scrollRef.current?.scrollToEnd({ animated: true });
     }, 120);
-
     return () => clearTimeout(timer);
   }, [messages.length]);
 
   const handleSend = (text: string) => {
+    Keyboard.dismiss();
+
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       isUser: true,
       type: 'text',
       text,
     };
-
     setMessages((prev) => [...prev, userMessage]);
 
     setTimeout(() => {
       const estimate = generateFakeEstimate(text);
-
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         isUser: false,
@@ -76,49 +71,33 @@ export default function ChatSection({
         estimate,
         confirmed: false,
       };
-
       setMessages((prev) => [...prev, aiMessage]);
     }, 800);
   };
 
-    const handleConfirm = async (id: string) => {
+  const handleConfirm = async (id: string) => {
     const message = messages.find((m) => m.id === id);
-
     if (!message || !message.estimate || message.confirmed) return;
 
     const estimate = message.estimate;
-
-    // 🔥 get current user
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-        console.error('No user found');
-        return;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { console.error('No user found'); return; }
 
     const { error } = await supabase.from('meals').insert({
-        calories: estimate.calories,
-        protein: estimate.protein,
-        carbs: estimate.carbs,
-        fat: estimate.fat,
-        user_id: user.id, // 🔥 THIS IS THE KEY
+      calories: estimate.calories,
+      protein: estimate.protein,
+      carbs: estimate.carbs,
+      fat: estimate.fat,
+      user_id: user.id,
     });
 
-    if (error) {
-        console.error('Save failed:', error.message);
-        return;
-    }
+    if (error) { console.error('Save failed:', error.message); return; }
 
     onConfirmMeal(estimate);
-
     setMessages((prev) =>
-        prev.map((m) =>
-        m.id === id ? { ...m, confirmed: true } : m
-        )
+      prev.map((m) => (m.id === id ? { ...m, confirmed: true } : m))
     );
-    };
+  };
 
   return (
     <KeyboardAvoidingView
@@ -155,24 +134,32 @@ export default function ChatSection({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 0.62,
-    backgroundColor: '#111827',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
+    flex: 1,
+    backgroundColor: '#0e0e0e',
+
+    marginTop: 10,          // space under hero card
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+
+    overflow: 'hidden',     // 🔥 clips scroll to rounded corners
   },
+
   scroll: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
+
   chatContent: {
     padding: 16,
-    gap: 12,
+    paddingTop: 18,
+    gap: 10,
     paddingBottom: 12,
   },
+
   inputWrapper: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: '#111827',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 2 : 2,
+    backgroundColor: '#0e0e0e',
   },
 });
