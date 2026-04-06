@@ -1,141 +1,102 @@
+import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useState } from 'react';
-import {
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
+  const { theme, toggleTheme } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSignUp = async () => {
-    if (!email || !password) return;
-
-    setLoading(true);
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    alert('Account created. If email confirmation is enabled, check your email.');
-  };
-
   const handleSignIn = async () => {
     if (!email || !password) return;
-
     setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
+    if (error) alert(error.message);
+  };
 
-    if (error) {
-      alert(error.message);
-    }
+  const handleSignUp = async () => {
+    if (!email || !password) return;
+    setLoading(true);
+    const { error } = await supabase.auth.signUp({ email, password });
+    setLoading(false);
+    if (error) { alert(error.message); return; }
+    alert('Account created! Check your email if confirmation is enabled.');
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>NutriChat</Text>
-      <Text style={styles.subtitle}>Sign in or create an account</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#94a3b8"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#94a3b8"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      <TouchableOpacity style={styles.primaryButton} onPress={handleSignIn} disabled={loading}>
-        <Text style={styles.primaryButtonText}>
-          {loading ? 'Loading...' : 'Sign In'}
-        </Text>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      <TouchableOpacity style={[styles.themeToggle, { backgroundColor: theme.bgCard }]} onPress={toggleTheme}>
+        <Text style={{ fontSize: 18 }}>{theme.isDark ? '☀️' : '🌙'}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.secondaryButton} onPress={handleSignUp} disabled={loading}>
-        <Text style={styles.secondaryButtonText}>Create Account</Text>
-      </TouchableOpacity>
+      <View style={styles.logoArea}>
+        <Text style={[styles.logoMark, { color: theme.primary }]}>◈</Text>
+        <Text style={[styles.title, { color: theme.primary }]}>The Vitality{'\n'}Framework</Text>
+        <Text style={[styles.subtitle, { color: theme.textSub }]}>Track your nutrition with AI</Text>
+      </View>
+
+      <View style={styles.form}>
+        <TextInput
+          style={[styles.input, { backgroundColor: theme.bgCard, borderColor: theme.border, color: theme.textMain }]}
+          placeholder="Email address"
+          placeholderTextColor={theme.textDim}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <TextInput
+          style={[styles.input, { backgroundColor: theme.bgCard, borderColor: theme.border, color: theme.textMain }]}
+          placeholder="Password"
+          placeholderTextColor={theme.textDim}
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+        <TouchableOpacity
+          style={[styles.primaryButton, { backgroundColor: theme.primaryBtn }]}
+          onPress={handleSignIn} disabled={loading}
+        >
+          <Text style={[styles.primaryButtonText, { color: theme.primaryBtnText }]}>
+            {loading ? 'Loading...' : 'Sign In'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.secondaryButton, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+          onPress={handleSignUp} disabled={loading}
+        >
+          <Text style={[styles.secondaryButtonText, { color: theme.textMain }]}>Create Account</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-    paddingHorizontal: 24,
-    justifyContent: 'center',
+  container: { flex: 1, paddingHorizontal: 28, justifyContent: 'center', gap: 40 },
+  themeToggle: {
+    position: 'absolute', top: 60, right: 28,
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
   },
-  title: {
-    color: 'white',
-    fontSize: 34,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  subtitle: {
-    color: '#cbd5e1',
-    fontSize: 16,
-    marginBottom: 28,
-  },
+  logoArea: { gap: 8 },
+  logoMark: { fontSize: 36, marginBottom: 4 },
+  title: { fontSize: 32, fontWeight: '800', lineHeight: 38 },
+  subtitle: { fontSize: 15 },
+  form: { gap: 14 },
   input: {
-    backgroundColor: '#1e293b',
-    color: 'white',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 14,
+    borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16,
+    fontSize: 16, borderWidth: 1,
   },
   primaryButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 8,
+    paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginTop: 6,
   },
-  primaryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  primaryButtonText: { fontSize: 16, fontWeight: '700', letterSpacing: 1 },
   secondaryButton: {
-    backgroundColor: '#1e293b',
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 12,
+    paddingVertical: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1,
   },
-  secondaryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  secondaryButtonText: { fontSize: 16, fontWeight: '600' },
 });
