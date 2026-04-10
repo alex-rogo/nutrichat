@@ -1,16 +1,19 @@
+import { Colors } from '@/constants/theme';
 import { generateFakeEstimate } from '@/lib/mockAI';
 import { supabase } from '@/lib/supabase';
 import { ChatMessage } from '@/types/chat';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme
 } from 'react-native';
 import MealInput from './MealInput';
 import MessageBubble from './MessageBubble';
@@ -28,9 +31,18 @@ type LogEntry = {
 type Props = {
   onConfirmMeal: (estimate: { calories: number; protein: number; carbs: number; fat: number }) => void;
   initialMeals: any[];
+  onOpenInsights: () => void;
+  externalRecipe?: any | null;
+  onClearRecipe?: () => void;
 };
 
-export default function ChatSection({ onConfirmMeal, initialMeals }: Props) {
+export default function ChatSection({ onConfirmMeal, initialMeals, onOpenInsights, externalRecipe, onClearRecipe }: Props) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const theme = Colors[colorScheme ?? 'dark'] || Colors.dark;
+
+  const transparentBg = isDark ? 'rgba(13, 13, 13, 0)' : 'rgba(252, 252, 252, 0)';
+
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -43,19 +55,41 @@ export default function ChatSection({ onConfirmMeal, initialMeals }: Props) {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const scrollRef = useRef<ScrollView>(null);
 
+  // INCOMING RECIPE LISTENER
+  useEffect(() => {
+    if (externalRecipe) {
+      setMessages([
+        { id: 'welcome', isUser: false, type: 'text', text: "Hi! Tell me what you ate, and I'll estimate the calories and macros for you." },
+        {
+          id: 'recipe-' + Date.now(),
+          isUser: false,
+          type: 'recipe',
+          recipe: externalRecipe,
+          confirmed: false,
+          _foodName: externalRecipe.name
+        } as any
+      ]);
+      setChatOpen(true);
+      if (onClearRecipe) onClearRecipe();
+    }
+  }, [externalRecipe]);
+
   useEffect(() => {
     if (!initialMeals || initialMeals.length === 0) return;
-    const entries: LogEntry[] = initialMeals.map((meal) => ({
-      id: meal.id,
-      name: meal.name || 'Logged Meal',
-      calories: meal.calories,
-      protein: meal.protein,
-      carbs: meal.carbs,
-      fat: meal.fat,
-      time: meal.created_at
-        ? new Date(meal.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : '',
-    }));
+    
+    const entries: LogEntry[] = initialMeals
+      .filter((meal) => meal != null)
+      .map((meal) => ({
+        id: meal.id || Math.random().toString(),
+        name: meal.name || 'Logged Meal',
+        calories: meal.calories || 0,
+        protein: meal.protein || 0,
+        carbs: meal.carbs || 0,
+        fat: meal.fat || 0,
+        time: meal.created_at
+          ? new Date(meal.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }));
     setLogEntries(entries);
   }, [initialMeals]);
 
@@ -67,22 +101,11 @@ export default function ChatSection({ onConfirmMeal, initialMeals }: Props) {
   }, [messages.length]);
 
   const handleSend = (text: string) => {
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      isUser: true,
-      type: 'text',
-      text,
-    };
+    const userMessage: ChatMessage = { id: Date.now().toString(), isUser: true, type: 'text', text };
     setMessages((prev) => [...prev, userMessage]);
 
-    // Typing indicator
     const thinkingId = 'thinking-' + Date.now();
-    const thinkingMsg: ChatMessage = {
-      id: thinkingId,
-      isUser: false,
-      type: 'text',
-      text: 'Analyzing...',
-    };
+    const thinkingMsg: ChatMessage = { id: thinkingId, isUser: false, type: 'text', text: 'Analyzing...' };
     setMessages((prev) => [...prev, thinkingMsg]);
 
     setTimeout(() => {
@@ -103,71 +126,62 @@ export default function ChatSection({ onConfirmMeal, initialMeals }: Props) {
 
   const handleConfirm = async (id: string) => {
     const message = messages.find((m) => m.id === id);
-    if (!message || !message.estimate || message.confirmed) return;
+    if (!message || message.confirmed) return;
 
-    const estimate = message.estimate;
+    // Check if confirming an AI Estimate or a Recipe Card
+    const estimateData = message.type === 'recipe' ? message.recipe : message.estimate;
+    if (!estimateData) return;
+
     const foodName = (message as any)._foodName || 'Meal';
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     const { error } = await supabase.from('meals').insert({
-      calories: estimate.calories,
-      protein: estimate.protein,
-      carbs: estimate.carbs,
-      fat: estimate.fat,
+      name: foodName,
+      calories: estimateData.calories,
+      protein: estimateData.protein,
+      carbs: estimateData.carbs,
+      fat: estimateData.fat,
       user_id: user.id,
     });
 
-    if (error) {
-      console.error('Save failed:', error.message);
-      return;
-    }
+    if (error) { console.error('Save failed:', error.message); return; }
 
-    onConfirmMeal(estimate);
+    onConfirmMeal(estimateData);
 
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, confirmed: true } : m))
-    );
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, confirmed: true } : m)));
 
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newEntry: LogEntry = {
       id: id,
       name: foodName,
-      calories: estimate.calories,
-      protein: estimate.protein,
-      carbs: estimate.carbs,
-      fat: estimate.fat,
+      calories: estimateData.calories,
+      protein: estimateData.protein,
+      carbs: estimateData.carbs,
+      fat: estimateData.fat,
       time: timeString,
     };
     setLogEntries((prev) => [newEntry, ...prev]);
 
-    // Close chat after a brief delay
-    setTimeout(() => {
-      setChatOpen(false);
-    }, 800);
+    setTimeout(() => { setChatOpen(false); }, 800);
   };
 
   const openChat = () => {
-    setMessages([
-      {
-        id: 'welcome',
-        isUser: false,
-        type: 'text',
-        text: "Hi! Tell me what you ate, and I'll estimate the calories and macros for you.",
-      },
-    ]);
+    setMessages([{ id: 'welcome', isUser: false, type: 'text', text: "Hi! Tell me what you ate, and I'll estimate the calories and macros for you." }]);
     setChatOpen(true);
   };
 
   return (
     <View style={styles.container}>
-      {/* Recently Logged Section */}
       <View style={styles.recentHeader}>
         <View>
-          <Text style={styles.recentTitle}>Recently Logged</Text>
-          <Text style={styles.recentSubtitle}>Your nutritional journey today</Text>
+          <Text style={[styles.recentTitle, { color: theme.text || '#ffffff' }]}>Recently Logged</Text>
+          <Text style={[styles.recentSubtitle, { color: theme.textSub || '#a0a0a0' }]}>Swipe left to delete • Right to save</Text>
         </View>
+        <TouchableOpacity onPress={onOpenInsights}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: theme.primary || '#39ff14' }}>View History</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -178,69 +192,74 @@ export default function ChatSection({ onConfirmMeal, initialMeals }: Props) {
         {logEntries.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No meals logged yet today.</Text>
-            <Text style={styles.emptySubtext}>Tap LOG ITEM to get started!</Text>
+            <Text style={styles.emptySubtext}>Tap the + button to get started!</Text>
           </View>
         ) : (
           logEntries.map((entry) => (
-            <View key={entry.id} style={styles.logCard}>
+            <View key={entry.id} style={[styles.logCard, { backgroundColor: theme.listItem || '#1c1c1c', borderColor: theme.border || '#2a2a2a' }]}>
               <View style={styles.foodInfo}>
-                <Text style={styles.foodTitle}>{entry.name}</Text>
-                <Text style={styles.foodMeta}>Just now • {entry.time}</Text>
+                <Text style={[styles.foodTitle, { color: theme.text || '#ffffff' }]}>{entry.name}</Text>
+                <Text style={[styles.foodMeta, { color: theme.textSub || '#a0a0a0' }]}>Just now • {entry.time}</Text>
                 <View style={styles.foodMacros}>
                   <View style={styles.macroBadge}>
-                    <View style={[styles.macroDot, { backgroundColor: '#39ff14' }]} />
-                    <Text style={styles.macroText}>{entry.protein}g P</Text>
+                    <View style={[styles.macroDot, { backgroundColor: theme.protein || '#39ff14' }]} />
+                    <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>{entry.protein}g P</Text>
                   </View>
                   <View style={styles.macroBadge}>
-                    <View style={[styles.macroDot, { backgroundColor: '#00d2ff' }]} />
-                    <Text style={styles.macroText}>{entry.carbs}g C</Text>
+                    <View style={[styles.macroDot, { backgroundColor: theme.carbs || '#00d2ff' }]} />
+                    <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>{entry.carbs}g C</Text>
                   </View>
                   <View style={styles.macroBadge}>
-                    <View style={[styles.macroDot, { backgroundColor: '#ff7300' }]} />
-                    <Text style={styles.macroText}>{entry.fat}g F</Text>
+                    <View style={[styles.macroDot, { backgroundColor: theme.fats || '#ff7300' }]} />
+                    <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>{entry.fat}g F</Text>
                   </View>
                 </View>
               </View>
               <View style={styles.foodCalories}>
-                <Text style={styles.caloriesVal}>{entry.calories}</Text>
-                <Text style={styles.caloriesLbl}>KCAL</Text>
+                <Text style={[styles.caloriesVal, { color: theme.primary || '#39ff14' }]}>{entry.calories}</Text>
+                <Text style={[styles.caloriesLbl, { color: theme.textDim || '#666666' }]}>KCAL</Text>
               </View>
             </View>
           ))
         )}
       </ScrollView>
 
-      {/* Floating LOG ITEM button */}
-      <View style={styles.floatingBtn}>
-        <TouchableOpacity style={styles.logBtn} onPress={openChat}>
-          <Text style={styles.logBtnText}>✓  LOG ITEM</Text>
+      <LinearGradient
+        colors={[transparentBg, theme.mainBg || '#0d0d0d', theme.mainBg || '#0d0d0d']}
+        locations={[0, 0.4, 1]}
+        style={styles.fabContainer}
+        pointerEvents="box-none"
+      >
+        <TouchableOpacity 
+          style={[styles.fab, { backgroundColor: theme.primary || '#39ff14', shadowColor: theme.primary || '#39ff14' }]}
+          onPress={openChat}
+        >
+          <Text style={styles.fabIcon}>+</Text> 
         </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
-      {/* Chat Modal */}
       <Modal
         visible={chatOpen}
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setChatOpen(false)}
       >
-        <KeyboardAvoidingView
-          style={styles.modalContainer}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={0}
+      <KeyboardAvoidingView
+          style={[styles.modalContainer, { backgroundColor: theme.mainBg || '#0d0d0d' }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          // FIX: Add an offset specifically for iOS so the keyboard doesn't cover the input
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
         >
-          {/* Chat Header */}
-          <View style={styles.chatHeader}>
+          <View style={[styles.chatHeader, { backgroundColor: theme.card || '#161616', borderBottomColor: theme.border || '#2a2a2a' }]}>
             <View style={styles.chatHeaderTitle}>
               <Text style={styles.chatHeaderIcon}>💬</Text>
-              <Text style={styles.chatHeaderText}>NutriChat AI</Text>
+              <Text style={[styles.chatHeaderText, { color: theme.text || '#ffffff' }]}>NutriChat AI</Text>
             </View>
             <TouchableOpacity onPress={() => setChatOpen(false)} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>✕</Text>
+              <Text style={[styles.closeBtnText, { color: theme.textSub || '#a0a0a0' }]}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Messages */}
           <ScrollView
             ref={scrollRef}
             style={styles.chatScroll}
@@ -253,14 +272,13 @@ export default function ChatSection({ onConfirmMeal, initialMeals }: Props) {
                 key={message.id}
                 {...message}
                 onConfirm={
-                  message.type === 'estimate' ? () => handleConfirm(message.id) : undefined
+                  message.type === 'estimate' || message.type === 'recipe' ? () => handleConfirm(message.id) : undefined
                 }
               />
             ))}
           </ScrollView>
 
-          {/* Input */}
-          <View style={styles.chatInputArea}>
+          <View style={[styles.chatInputArea, { backgroundColor: theme.mainBg || '#0d0d0d', borderTopColor: theme.border || '#2a2a2a' }]}>
             <MealInput onSend={handleSend} />
           </View>
         </KeyboardAvoidingView>
@@ -272,7 +290,6 @@ export default function ChatSection({ onConfirmMeal, initialMeals }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0d0d0d',
   },
   recentHeader: {
     flexDirection: 'row',
@@ -280,16 +297,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 24,
     marginBottom: 16,
+    marginTop: 10,
   },
   recentTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
-    color: '#ffffff',
     marginBottom: 2,
   },
   recentSubtitle: {
     fontSize: 12,
-    color: '#a0a0a0',
   },
   logList: {
     flex: 1,
@@ -297,7 +313,7 @@ const styles = StyleSheet.create({
   },
   logListContent: {
     gap: 16,
-    paddingBottom: 120,
+    paddingBottom: 140,
   },
   emptyState: {
     alignItems: 'center',
@@ -313,27 +329,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   logCard: {
-    backgroundColor: '#1c1c1c',
     borderRadius: 20,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2a2a2a',
   },
-  foodInfo: {
-    flex: 1,
-  },
+  foodInfo: { flex: 1 },
   foodTitle: {
     fontWeight: '700',
-    color: '#ffffff',
     fontSize: 15,
     marginBottom: 4,
     textTransform: 'capitalize',
   },
   foodMeta: {
     fontSize: 11,
-    color: '#a0a0a0',
     marginBottom: 8,
   },
   foodMacros: {
@@ -353,81 +363,65 @@ const styles = StyleSheet.create({
   macroText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#a0a0a0',
   },
-  foodCalories: {
-    alignItems: 'flex-end',
-  },
+  foodCalories: { alignItems: 'flex-end' },
   caloriesVal: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#39ff14',
   },
   caloriesLbl: {
     fontSize: 9,
-    color: '#666666',
     fontWeight: '600',
   },
-  floatingBtn: {
+  fabContainer: {
     position: 'absolute',
-    bottom: 0,
+    bottom: -35, 
     left: 0,
     right: 0,
-    paddingHorizontal: 30,
-    paddingBottom: 28,
-    paddingTop: 16,
-    backgroundColor: 'transparent',
+    height: 140, 
+    justifyContent: 'flex-end',
     alignItems: 'center',
+    paddingBottom: 40, 
+    zIndex: 10,
   },
-  logBtn: {
-    backgroundColor: '#39ff14',
-    paddingVertical: 16,
-    paddingHorizontal: 60,
-    borderRadius: 20,
+  fab: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 25,
+    elevation: 5,
   },
-  logBtnText: {
-    color: '#000000',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 1.5,
+  fabIcon: {
+    fontSize: 32,
+    color: '#000',
+    fontWeight: '300',
+    marginTop: -2,
   },
-  // Chat Modal
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#0d0d0d',
-  },
+  modalContainer: { flex: 1 },
   chatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#161616',
     borderBottomWidth: 1,
-    borderBottomColor: '#222',
   },
   chatHeaderTitle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  chatHeaderIcon: {
-    fontSize: 20,
-  },
+  chatHeaderIcon: { fontSize: 20 },
   chatHeaderText: {
-    color: '#ffffff',
     fontWeight: '700',
     fontSize: 17,
   },
-  closeBtn: {
-    padding: 4,
-  },
-  closeBtnText: {
-    color: '#a0a0a0',
-    fontSize: 20,
-  },
-  chatScroll: {
-    flex: 1,
-  },
+  closeBtn: { padding: 4 },
+  closeBtnText: { fontSize: 20 },
+  chatScroll: { flex: 1 },
   chatContent: {
     padding: 24,
     gap: 16,
@@ -437,8 +431,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 28,
-    backgroundColor: '#0d0d0d',
     borderTopWidth: 1,
-    borderTopColor: '#222',
   },
 });

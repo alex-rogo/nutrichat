@@ -3,9 +3,18 @@ export type ChatMessage = {
   isUser: boolean;
   text?: string;
 
-  type?: 'text' | 'estimate';
+  type?: 'text' | 'estimate' | 'recipe'; // Added 'recipe'
 
   estimate?: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+
+  recipe?: {
+    name: string;
+    ingredients: string[];
     calories: number;
     protein: number;
     carbs: number;

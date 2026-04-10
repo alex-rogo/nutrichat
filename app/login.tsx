@@ -34,8 +34,8 @@ export default function LoginScreen() {
 
       <View style={styles.logoArea}>
         <Text style={[styles.logoMark, { color: theme.primary }]}>◈</Text>
-        <Text style={[styles.title, { color: theme.primary }]}>The Vitality{'\n'}Framework</Text>
-        <Text style={[styles.subtitle, { color: theme.textSub }]}>Track your nutrition with AI</Text>
+        <Text style={[styles.title, { color: theme.primary }]}>NutriChat</Text>
+        <Text style={[styles.subtitle, { color: theme.textSub }]}>Track your nutrition with a simple chat</Text>
       </View>
 
       <View style={styles.form}>

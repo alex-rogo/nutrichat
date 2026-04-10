@@ -23,6 +23,7 @@ export default function MealInput({ onSend }: Props) {
         onChangeText={setInput}
         onSubmitEditing={handleSend}
         returnKeyType="send"
+        autoFocus={true}
       />
       <TouchableOpacity style={styles.sendBtn} onPress={handleSend}>
         {/* Paper-plane send icon */}
