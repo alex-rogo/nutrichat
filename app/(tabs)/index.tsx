@@ -6,6 +6,12 @@ import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 import { Modal, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 
+const INITIAL_QUICK_LOGS: QuickLogItem[] = [
+  { id: 1, title: 'Whey Protein Shake', cals: 180, p: 40, c: 5, f: 2, type: 'saved' },
+  { id: 2, title: 'Greek Yogurt Bowl', cals: 150, p: 15, c: 10, f: 0, type: 'saved' },
+  { id: 3, title: 'Quinoa Power Salad', cals: 450, p: 25, c: 45, f: 18, type: 'recipe' },
+];
+
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'dark'] || Colors.dark;
@@ -14,6 +20,9 @@ export default function HomeScreen() {
   const [initialMeals, setInitialMeals] = useState<any[]>([]);
   const [isInsightsVisible, setIsInsightsVisible] = useState(false);
   const [externalRecipe, setExternalRecipe] = useState<any | null>(null);
+  
+  // State to hold Quick Access items dynamically
+  const [quickLogs, setQuickLogs] = useState<QuickLogItem[]>(INITIAL_QUICK_LOGS);
 
   useEffect(() => {
     const loadMeals = async () => {
@@ -53,6 +62,34 @@ export default function HomeScreen() {
       carbs: (prev?.carbs || 0) + (estimate.carbs || 0),
       fat: (prev?.fat || 0) + (estimate.fat || 0),
     }));
+  };
+
+  const handleDeleteMeal = (mealData: { calories: number; protein: number; carbs: number; fat: number }) => {
+    // Subtract macros when an item is deleted via swipe
+    setTotals((prev) => ({
+      calories: Math.max(0, prev.calories - mealData.calories),
+      protein: Math.max(0, prev.protein - mealData.protein),
+      carbs: Math.max(0, prev.carbs - mealData.carbs),
+      fat: Math.max(0, prev.fat - mealData.fat),
+    }));
+  };
+
+  const handleSaveMealToQuickAccess = (mealData: any) => {
+    // Check if it already exists to prevent duplicates
+    if (quickLogs.some(log => log.title === mealData.name)) return;
+
+    const newItem: QuickLogItem = {
+      id: Date.now().toString(),
+      title: mealData.name,
+      cals: mealData.calories,
+      p: mealData.protein,
+      c: mealData.carbs,
+      f: mealData.fat,
+      type: 'saved'
+    };
+    
+    // Add to the front of the Quick Access list
+    setQuickLogs((prev) => [newItem, ...prev]);
   };
 
   const handleQuickAction = async (item: QuickLogItem) => {
@@ -104,12 +141,13 @@ export default function HomeScreen() {
 
         <MacroHeader totals={totals} />
 
-        {/* Clean, abstracted Quick Access component */}
-        <QuickAccess onQuickAction={handleQuickAction} />
+        <QuickAccess quickLogs={quickLogs} onQuickAction={handleQuickAction} />
 
         <View style={styles.feedContainer}>
           <ChatSection 
             onConfirmMeal={handleAddMeal} 
+            onDeleteMeal={handleDeleteMeal}
+            onSaveMeal={handleSaveMealToQuickAccess}
             initialMeals={initialMeals} 
             onOpenInsights={() => setIsInsightsVisible(true)}
             externalRecipe={externalRecipe}

@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 // Create an animatable version of the SVG Circle
@@ -11,7 +11,7 @@ type MacroRingProps = {
   color: string;
   trackColor: string;
   label: string;
-  macroValue: number; // Changed to accept the raw number for counting
+  macroValue: number;
   textColor: string;
   subTextColor: string;
 };
@@ -22,15 +22,12 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 function MacroRing({ percent, color, trackColor, label, macroValue, textColor, subTextColor }: MacroRingProps) {
   const clampedPercent = Math.min(100, Math.max(0, percent || 0));
   
-  // Animation Values
   const animatedPercent = useRef(new Animated.Value(0)).current;
   const animatedMacro = useRef(new Animated.Value(0)).current;
   
-  // State for the number text running up
   const [displayVal, setDisplayVal] = useState(0);
 
   useEffect(() => {
-    // Listen to the animated value to update our text state rapidly
     const listenerId = animatedMacro.addListener((v) => {
       setDisplayVal(Math.round(v.value));
     });
@@ -39,12 +36,14 @@ function MacroRing({ percent, color, trackColor, label, macroValue, textColor, s
     Animated.parallel([
       Animated.timing(animatedPercent, {
         toValue: clampedPercent,
-        duration: 1200, 
-        useNativeDriver: false, // Required for SVG stroke properties
+        duration: 1500, // Increased slightly to show off the slow-down
+        easing: Easing.out(Easing.cubic), // <--- THIS CREATES THE DECELERATION EFFECT
+        useNativeDriver: false, 
       }),
       Animated.timing(animatedMacro, {
         toValue: macroValue || 0,
-        duration: 1200,
+        duration: 1500,
+        easing: Easing.out(Easing.cubic), // <--- MATCHING DECELERATION
         useNativeDriver: false,
       }),
     ]).start();
@@ -54,7 +53,6 @@ function MacroRing({ percent, color, trackColor, label, macroValue, textColor, s
     };
   }, [clampedPercent, macroValue]);
 
-  // Translate the 0-100 percentage into an SVG dash offset
   const strokeDashoffset = animatedPercent.interpolate({
     inputRange: [0, 100],
     outputRange: [CIRCUMFERENCE, 0],
@@ -97,7 +95,6 @@ export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs:
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'dark'] || Colors.dark || {}; 
 
-  // Animation values for the large Calories counter
   const animatedCals = useRef(new Animated.Value(0)).current;
   const [displayCals, setDisplayCals] = useState(0);
 
@@ -108,7 +105,8 @@ export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs:
 
     Animated.timing(animatedCals, {
       toValue: totals?.calories || 0,
-      duration: 1200,
+      duration: 1500, // Match the duration of the rings
+      easing: Easing.out(Easing.cubic), // <--- SLOW DOWN AT THE END FOR CALORIES
       useNativeDriver: false,
     }).start();
 
@@ -117,7 +115,6 @@ export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs:
     };
   }, [totals?.calories]);
 
-  // Turn red if the RUNNING number crosses the limit, making the transition look cool
   const isOverLimit = displayCals > CALORIE_GOAL;
 
   return (
@@ -165,7 +162,7 @@ export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs:
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 24,
-    paddingTop: 5,
+    paddingTop: 8,
     paddingBottom: 10,
   },
   sectionSubtitle: {
@@ -180,7 +177,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
   },
   caloriesDisplay: {
     flexDirection: 'row',

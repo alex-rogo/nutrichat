@@ -2,7 +2,7 @@ import { Colors } from '@/constants/theme';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 export type QuickLogItem = {
-  id: number;
+  id: string | number;
   title: string;
   cals: number;
   p: number;
@@ -11,17 +11,12 @@ export type QuickLogItem = {
   type: 'saved' | 'recipe';
 };
 
-const QUICK_LOGS: QuickLogItem[] = [
-  { id: 1, title: 'Whey Protein Shake', cals: 180, p: 40, c: 5, f: 2, type: 'saved' },
-  { id: 2, title: 'Greek Yogurt Bowl', cals: 150, p: 15, c: 10, f: 0, type: 'saved' },
-  { id: 3, title: 'Quinoa Power Salad', cals: 450, p: 25, c: 45, f: 18, type: 'recipe' },
-];
-
 type Props = {
+  quickLogs: QuickLogItem[]; // Now passed in as a prop
   onQuickAction: (item: QuickLogItem) => void;
 };
 
-export default function QuickAccess({ onQuickAction }: Props) {
+export default function QuickAccess({ quickLogs, onQuickAction }: Props) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'dark'] || Colors.dark;
 
@@ -33,7 +28,7 @@ export default function QuickAccess({ onQuickAction }: Props) {
         showsHorizontalScrollIndicator={false} 
         contentContainerStyle={styles.quickAccessScroll}
       >
-        {QUICK_LOGS.map((item) => (
+        {quickLogs.map((item) => (
           <TouchableOpacity 
             key={item.id} 
             style={[styles.quickCard, { backgroundColor: theme.card || '#161616', borderColor: theme.border || '#2a2a2a' }]}
