@@ -1,117 +1,170 @@
 import { Colors } from '@/constants/theme';
-import { ChatMessage } from '@/types/chat';
-import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
-import EstimateCard from './EstimateCard';
+import * as Haptics from 'expo-haptics'; // <-- NEW HAPTICS IMPORT
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 
-type Props = ChatMessage & { onConfirm?: () => void };
+// --- PREMIUM ANIMATED BUTTON (Original Style) ---
+const AnimatedConfirmButton = ({ onConfirm, confirmed, theme, colorScheme }: any) => {
+  const [isLogging, setIsLogging] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-export default function MessageBubble({ isUser, text, type, estimate, recipe, confirmed, onConfirm }: Props) {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'dark'] || Colors.dark;
+  // Listen for the database confirmation
+  useEffect(() => {
+    if (confirmed) {
+      setIsLogging(false);
+      // Trigger a satisfying "Success" double-vibration when the database finishes!
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [confirmed]);
 
-  // Render standard AI macro estimate
-  if (type === 'estimate' && estimate) {
-    return (
-      <EstimateCard
-        calories={estimate.calories}
-        protein={estimate.protein}
-        carbs={estimate.carbs}
-        fat={estimate.fat}
-        confirmed={confirmed}
-        onConfirm={onConfirm}
-      />
-    );
-  }
+  const handlePressIn = () => {
+    if (!confirmed && !isLogging) {
+      Animated.spring(scaleAnim, { toValue: 0.95, useNativeDriver: true }).start();
+    }
+  };
 
-  // Render the special HTML-style Recipe Card
-  if (type === 'recipe' && recipe) {
-    return (
-      <View style={[styles.aiContainer, { backgroundColor: theme.card || '#161616', borderLeftColor: theme.primary || '#39ff14' }]}>
-        <Text style={[styles.text, { color: theme.text || '#ffffff' }]}>
-          Here is the recipe for <Text style={{ color: theme.primary || '#39ff14', fontWeight: '700' }}>{recipe.name}</Text>:
-        </Text>
+  const handlePressOut = () => {
+    if (!confirmed && !isLogging) {
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
+    }
+  };
 
-        <View style={styles.recipeList}>
-          {recipe.ingredients.map((ing, i) => (
-            <Text key={i} style={[styles.recipeItem, { color: theme.textSub || '#a0a0a0' }]}>• {ing}</Text>
-          ))}
-        </View>
+  const handlePress = () => {
+    if (isLogging || confirmed) return;
+    
+    // Trigger a light physical tap the moment they press the button
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    setIsLogging(true);
+    if (onConfirm) onConfirm();
+  };
 
-        <Text style={[styles.text, { color: theme.text || '#ffffff', marginBottom: 12 }]}>
-          Mix ingredients in a bowl. Enjoy your healthy meal!
-        </Text>
+  // Keep the text color contrasting properly based on light/dark mode
+  const btnTextColor = colorScheme === 'dark' ? '#000000' : '#ffffff';
 
-        <Text style={[styles.recipeMacros, { color: theme.textSub || '#a0a0a0' }]}>
-          Macros: {recipe.calories} kcal ({recipe.protein}g P, {recipe.carbs}g C, {recipe.fat}g F)
-        </Text>
-
-        {!confirmed ? (
-          <TouchableOpacity
-            style={[styles.logBtn, { backgroundColor: theme.primary || '#39ff14' }]}
-            onPress={onConfirm}
-          >
-            <Text style={styles.logBtnText}>✓ LOG THIS RECIPE</Text>
-          </TouchableOpacity>
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }], marginTop: 12 }}>
+      <TouchableOpacity
+        activeOpacity={0.85} 
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={handlePress}
+        // Restored your original solid background color
+        style={[styles.confirmBtn, { backgroundColor: theme.primary || '#39ff14' }]}
+      >
+        {isLogging ? (
+          <ActivityIndicator color={btnTextColor} />
         ) : (
-          <View style={[styles.logBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.primary || '#39ff14' }]}>
-            <Text style={[styles.logBtnText, { color: theme.primary || '#39ff14' }]}>✓ LOGGED</Text>
-          </View>
+          <Text style={[styles.confirmBtnText, { color: btnTextColor }]}>
+            {confirmed ? '✓ LOGGED SECURELY' : '✓ CONFIRM LOG'}
+          </Text>
         )}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+// --- MAIN BUBBLE COMPONENT ---
+export default function MessageBubble(props: any) {
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'dark'] || Colors.dark as any;
+  const { type, text, estimate, recipe, isUser, confirmed, onConfirm } = props;
+
+  // USER MESSAGE
+  if (isUser) {
+    return (
+      <View style={[styles.bubbleUser, { backgroundColor: theme.chatUserBg || '#2a2a2a' }]}>
+        <Text style={[styles.textMain, { color: theme.text || '#ffffff' }]}>{text}</Text>
       </View>
     );
   }
 
-  // Render standard text bubble
+  // SYSTEM MESSAGE
   return (
-    <View style={isUser ? [styles.userContainer, { backgroundColor: theme.border || '#2a2a2a' }] : [styles.aiContainer, { backgroundColor: theme.card || '#161616', borderLeftColor: theme.primary || '#39ff14' }]}>
-      <Text style={[styles.text, { color: theme.text || '#ffffff' }]}>{text}</Text>
+    <View style={[styles.bubbleSys, { backgroundColor: theme.card || '#161616', borderLeftColor: theme.chatSysBorder || '#39ff14' }]}>
+      
+      {/* Standard Text Response */}
+      {type === 'text' && (
+        <Text style={[styles.textMain, { color: theme.text || '#ffffff' }]}>{text}</Text>
+      )}
+
+      {/* AI Estimate Card */}
+      {type === 'estimate' && estimate && (
+        <View>
+          <Text style={[styles.textMain, { color: theme.text || '#ffffff', marginBottom: 8 }]}>
+            Got it! That looks like <Text style={{ color: theme.primary || '#39ff14', fontWeight: '700' }}>{estimate.calories} calories</Text>.
+          </Text>
+          <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>
+            (Protein: <Text style={{ color: theme.protein }}>{estimate.protein}g</Text>, Carbs: <Text style={{ color: theme.carbs }}>{estimate.carbs}g</Text>, Fats: <Text style={{ color: theme.fats }}>{estimate.fat}g</Text>)
+          </Text>
+          <AnimatedConfirmButton onConfirm={onConfirm} confirmed={confirmed} theme={theme} colorScheme={colorScheme} />
+        </View>
+      )}
+
+      {/* Recipe Card */}
+      {type === 'recipe' && recipe && (
+        <View>
+          <Text style={[styles.textMain, { color: theme.text || '#ffffff', marginBottom: 8 }]}>
+            Here is the recipe for <Text style={{ color: theme.primary || '#39ff14', fontWeight: '700' }}>{recipe.name}</Text>:
+          </Text>
+          <View style={{ marginBottom: 12, marginLeft: 8 }}>
+            {recipe.ingredients?.map((ing: string, i: number) => (
+              <Text key={i} style={{ color: theme.textSub || '#a0a0a0', fontSize: 13, marginBottom: 4, lineHeight: 18 }}>• {ing}</Text>
+            ))}
+          </View>
+          <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>
+            Macros: {recipe.calories} kcal ({recipe.protein}g P, {recipe.carbs}g C, {recipe.fat}g F)
+          </Text>
+          <AnimatedConfirmButton onConfirm={onConfirm} confirmed={confirmed} theme={theme} colorScheme={colorScheme} />
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  userContainer: {
-    alignSelf: 'flex-end',
-    padding: 14,
+  bubbleUser: {
+    maxWidth: '85%',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
     borderRadius: 18,
     borderBottomRightRadius: 4,
-    maxWidth: '80%',
+    alignSelf: 'flex-end',
   },
-  aiContainer: {
-    alignSelf: 'flex-start',
-    padding: 14,
+  bubbleSys: {
+    maxWidth: '85%',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
     borderRadius: 18,
     borderBottomLeftRadius: 4,
     borderLeftWidth: 4,
-    maxWidth: '85%',
+    alignSelf: 'flex-start',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    elevation: 3,
   },
-  text: {
+  textMain: {
     fontSize: 15,
     lineHeight: 22,
   },
-  recipeList: {
-    marginVertical: 12,
-    paddingLeft: 8,
-    gap: 4,
+  macroText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
-  recipeItem: {
-    fontSize: 13,
-  },
-  recipeMacros: {
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  logBtn: {
-    padding: 12,
+  confirmBtn: {
+    paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 44, 
   },
-  logBtnText: {
-    color: '#000000',
-    fontWeight: '700',
+  confirmBtnText: {
     fontSize: 14,
+    fontWeight: '800',
     letterSpacing: 1,
   },
 });

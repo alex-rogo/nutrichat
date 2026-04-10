@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 export type QuickLogItem = {
   id: string | number;
@@ -11,12 +12,57 @@ export type QuickLogItem = {
   type: 'saved' | 'recipe';
 };
 
+// --- ANIMATED WRAPPER ---
+function AnimatedQuickCard({ item, index, onQuickAction, onDeleteQuickLog, theme }: { item: QuickLogItem, index: number, onQuickAction: any, onDeleteQuickLog: any, theme: any }) {
+  const animVal = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(animVal, {
+      toValue: 1,
+      duration: 450,
+      delay: index * 100, 
+      useNativeDriver: true, 
+    }).start();
+  }, []);
+
+  const translateX = animVal.interpolate({
+    inputRange: [0, 1],
+    outputRange: [40, 0],
+  });
+
+  return (
+    <Animated.View style={{ opacity: animVal, transform: [{ translateX }] }}>
+      <TouchableOpacity 
+        style={[styles.quickCard, { backgroundColor: theme.card || '#161616', borderColor: theme.border || '#2a2a2a' }]}
+        onPress={() => onQuickAction(item)}
+      >
+        <View style={styles.quickCardHeader}>
+          <Text style={[styles.quickBadge, item.type === 'saved' ? styles.badgeSaved : styles.badgeRecipe]}>
+            {item.type}
+          </Text>
+          {/* NEW: Delete Button */}
+          <TouchableOpacity 
+            onPress={() => onDeleteQuickLog(item.id)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Makes the button easier to tap
+          >
+            <Text style={{ color: theme.textSub || '#a0a0a0', fontSize: 12, fontWeight: '800' }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.quickTitle, { color: theme.text || '#ffffff' }]} numberOfLines={1}>{item.title}</Text>
+        <Text style={[styles.quickInfo, { color: theme.textSub || '#a0a0a0' }]}>{item.cals} kcal • {item.p}g P</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 type Props = {
-  quickLogs: QuickLogItem[]; // Now passed in as a prop
+  quickLogs: QuickLogItem[];
   onQuickAction: (item: QuickLogItem) => void;
+  // NEW PROP
+  onDeleteQuickLog: (id: string | number) => void;
 };
 
-export default function QuickAccess({ quickLogs, onQuickAction }: Props) {
+export default function QuickAccess({ quickLogs, onQuickAction, onDeleteQuickLog }: Props) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'dark'] || Colors.dark;
 
@@ -28,20 +74,15 @@ export default function QuickAccess({ quickLogs, onQuickAction }: Props) {
         showsHorizontalScrollIndicator={false} 
         contentContainerStyle={styles.quickAccessScroll}
       >
-        {quickLogs.map((item) => (
-          <TouchableOpacity 
+        {quickLogs.map((item, index) => (
+          <AnimatedQuickCard 
             key={item.id} 
-            style={[styles.quickCard, { backgroundColor: theme.card || '#161616', borderColor: theme.border || '#2a2a2a' }]}
-            onPress={() => onQuickAction(item)}
-          >
-            <View style={styles.quickCardHeader}>
-              <Text style={[styles.quickBadge, item.type === 'saved' ? styles.badgeSaved : styles.badgeRecipe]}>
-                {item.type}
-              </Text>
-            </View>
-            <Text style={[styles.quickTitle, { color: theme.text || '#ffffff' }]} numberOfLines={1}>{item.title}</Text>
-            <Text style={[styles.quickInfo, { color: theme.textSub || '#a0a0a0' }]}>{item.cals} kcal • {item.p}g P</Text>
-          </TouchableOpacity>
+            item={item} 
+            index={index} 
+            onQuickAction={onQuickAction} 
+            onDeleteQuickLog={onDeleteQuickLog} // Pass it down to the card
+            theme={theme} 
+          />
         ))}
       </ScrollView>
     </View>
@@ -73,7 +114,7 @@ const styles = StyleSheet.create({
   quickCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center', // Changed from flex-start to center so the X aligns nicely
   },
   quickBadge: {
     fontSize: 8,

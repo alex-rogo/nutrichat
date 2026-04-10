@@ -5,6 +5,7 @@ import { ChatMessage } from '@/types/chat';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -31,13 +32,83 @@ type LogEntry = {
 
 type Props = {
   onConfirmMeal: (estimate: { calories: number; protein: number; carbs: number; fat: number }) => void;
-  onDeleteMeal: (estimate: { calories: number; protein: number; carbs: number; fat: number }) => void;
+  onDeleteMeal: (entry: any) => void;
   onSaveMeal: (entry: LogEntry) => void;
   initialMeals: any[];
   onOpenInsights: () => void;
   externalRecipe?: any | null;
   onClearRecipe?: () => void;
 };
+
+// --- NEW ANIMATED LOG CARD ---
+function AnimatedLogCard({ entry, index, theme, onSwipeDelete, onSwipeSave, registerRef }: any) {
+  const animVal = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(animVal, {
+      toValue: 1,
+      duration: 400,
+      delay: index * 80, // Slightly faster cascade for vertical lists
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  // Slide up from 30px below
+  const translateY = animVal.interpolate({
+    inputRange: [0, 1],
+    outputRange: [30, 0],
+  });
+
+  const renderLeftActions = () => (
+    <View style={[styles.swipeActionLeft, { backgroundColor: theme.primary || '#39ff14' }]}>
+      <Text style={[styles.swipeText, { color: '#000000' }]}>SAVE</Text>
+    </View>
+  );
+
+  const renderRightActions = () => (
+    <View style={[styles.swipeActionRight, { backgroundColor: theme.limit || '#ff3b30' }]}>
+      <Text style={[styles.swipeText, { color: '#ffffff' }]}>DELETE</Text>
+    </View>
+  );
+
+  return (
+    <Animated.View style={{ opacity: animVal, transform: [{ translateY }] }}>
+      <Swipeable
+        ref={(ref) => registerRef(entry.id, ref)}
+        renderLeftActions={renderLeftActions}
+        renderRightActions={renderRightActions}
+        onSwipeableRightOpen={() => onSwipeDelete(entry)}
+        onSwipeableLeftOpen={() => onSwipeSave(entry)}
+        containerStyle={{ borderRadius: 20 }}
+      >
+        <View style={[styles.logCard, { backgroundColor: theme.listItem || '#1c1c1c', borderColor: theme.border || '#2a2a2a' }]}>
+          <View style={styles.foodInfo}>
+            <Text style={[styles.foodTitle, { color: theme.text || '#ffffff' }]}>{entry.name}</Text>
+            <Text style={[styles.foodMeta, { color: theme.textSub || '#a0a0a0' }]}>Just now • {entry.time}</Text>
+            <View style={styles.foodMacros}>
+              <View style={styles.macroBadge}>
+                <View style={[styles.macroDot, { backgroundColor: theme.protein || '#39ff14' }]} />
+                <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>{entry.protein}g P</Text>
+              </View>
+              <View style={styles.macroBadge}>
+                <View style={[styles.macroDot, { backgroundColor: theme.carbs || '#00d2ff' }]} />
+                <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>{entry.carbs}g C</Text>
+              </View>
+              <View style={styles.macroBadge}>
+                <View style={[styles.macroDot, { backgroundColor: theme.fats || '#ff7300' }]} />
+                <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>{entry.fat}g F</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.foodCalories}>
+            <Text style={[styles.caloriesVal, { color: theme.primary || '#39ff14' }]}>{entry.calories}</Text>
+            <Text style={[styles.caloriesLbl, { color: theme.textDim || '#666666' }]}>KCAL</Text>
+          </View>
+        </View>
+      </Swipeable>
+    </Animated.View>
+  );
+}
 
 export default function ChatSection({ onConfirmMeal, onDeleteMeal, onSaveMeal, initialMeals, onOpenInsights, externalRecipe, onClearRecipe }: Props) {
   const colorScheme = useColorScheme();
@@ -51,7 +122,6 @@ export default function ChatSection({ onConfirmMeal, onDeleteMeal, onSaveMeal, i
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   
-  // Store refs to our swipeables so we can close them programmatically
   const swipeableRefs = useRef<{ [key: string]: Swipeable | null }>({});
 
   useEffect(() => {
@@ -133,7 +203,7 @@ export default function ChatSection({ onConfirmMeal, onDeleteMeal, onSaveMeal, i
 
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newEntry: LogEntry = {
-      id: data?.id || id, // Important: use the real Database ID so we can delete it later!
+      id: data?.id || id, 
       name: foodName,
       calories: estimateData.calories,
       protein: estimateData.protein,
@@ -141,46 +211,25 @@ export default function ChatSection({ onConfirmMeal, onDeleteMeal, onSaveMeal, i
       fat: estimateData.fat,
       time: timeString,
     };
+    
+    // Add the new item to the top of the feed
     setLogEntries((prev) => [newEntry, ...prev]);
 
     setTimeout(() => { setChatOpen(false); }, 800);
   };
 
-  // --- SWIPE ACTIONS LOGIC ---
   const handleSwipeDelete = async (entry: LogEntry) => {
-    // 1. Tell index.tsx to subtract from daily totals
     onDeleteMeal(entry);
-
-    // 2. Remove it visually from the local feed immediately
     setLogEntries((prev) => prev.filter(e => e.id !== entry.id));
-
-    // 3. Delete from Supabase in the background
     const { error } = await supabase.from('meals').delete().eq('id', entry.id);
     if (error) console.error("Error deleting meal:", error);
   };
 
   const handleSwipeSave = (entry: LogEntry) => {
-    // 1. Add to Quick Access
     onSaveMeal(entry);
-    
-    // 2. Snap the card back to the center
     const ref = swipeableRefs.current[entry.id];
     if (ref) ref.close();
   };
-
-  // The visual background when swiping right (Reveals Save on Left side)
-  const renderLeftActions = () => (
-    <View style={[styles.swipeActionLeft, { backgroundColor: theme.primary || '#39ff14' }]}>
-      <Text style={[styles.swipeText, { color: '#000000' }]}>SAVE</Text>
-    </View>
-  );
-
-  // The visual background when swiping left (Reveals Delete on Right side)
-  const renderRightActions = () => (
-    <View style={[styles.swipeActionRight, { backgroundColor: theme.limit || '#ff3b30' }]}>
-      <Text style={[styles.swipeText, { color: '#ffffff' }]}>DELETE</Text>
-    </View>
-  );
 
   const openChat = () => {
     setMessages([{ id: 'welcome', isUser: false, type: 'text', text: "Hi! Tell me what you ate..." }]);
@@ -210,43 +259,16 @@ export default function ChatSection({ onConfirmMeal, onDeleteMeal, onSaveMeal, i
             <Text style={styles.emptySubtext}>Tap the + button to get started!</Text>
           </View>
         ) : (
-          logEntries.map((entry) => (
-            <Swipeable
+          logEntries.map((entry, index) => (
+            <AnimatedLogCard
               key={entry.id}
-              ref={(ref) => { swipeableRefs.current[entry.id] = ref; }}
-              renderLeftActions={renderLeftActions}
-              renderRightActions={renderRightActions}
-              // Triggers when fully swiped left
-              onSwipeableRightOpen={() => handleSwipeDelete(entry)}
-              // Triggers when fully swiped right
-              onSwipeableLeftOpen={() => handleSwipeSave(entry)}
-              containerStyle={{ borderRadius: 20 }}
-            >
-              <View style={[styles.logCard, { backgroundColor: theme.listItem || '#1c1c1c', borderColor: theme.border || '#2a2a2a' }]}>
-                <View style={styles.foodInfo}>
-                  <Text style={[styles.foodTitle, { color: theme.text || '#ffffff' }]}>{entry.name}</Text>
-                  <Text style={[styles.foodMeta, { color: theme.textSub || '#a0a0a0' }]}>Just now • {entry.time}</Text>
-                  <View style={styles.foodMacros}>
-                    <View style={styles.macroBadge}>
-                      <View style={[styles.macroDot, { backgroundColor: theme.protein || '#39ff14' }]} />
-                      <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>{entry.protein}g P</Text>
-                    </View>
-                    <View style={styles.macroBadge}>
-                      <View style={[styles.macroDot, { backgroundColor: theme.carbs || '#00d2ff' }]} />
-                      <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>{entry.carbs}g C</Text>
-                    </View>
-                    <View style={styles.macroBadge}>
-                      <View style={[styles.macroDot, { backgroundColor: theme.fats || '#ff7300' }]} />
-                      <Text style={[styles.macroText, { color: theme.textSub || '#a0a0a0' }]}>{entry.fat}g F</Text>
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.foodCalories}>
-                  <Text style={[styles.caloriesVal, { color: theme.primary || '#39ff14' }]}>{entry.calories}</Text>
-                  <Text style={[styles.caloriesLbl, { color: theme.textDim || '#666666' }]}>KCAL</Text>
-                </View>
-              </View>
-            </Swipeable>
+              entry={entry}
+              index={index}
+              theme={theme}
+              onSwipeDelete={handleSwipeDelete}
+              onSwipeSave={handleSwipeSave}
+              registerRef={(id: string, ref: Swipeable | null) => { swipeableRefs.current[id] = ref; }}
+            />
           ))
         )}
       </ScrollView>
@@ -300,25 +322,9 @@ const styles = StyleSheet.create({
   emptyText: { color: '#a0a0a0', fontSize: 15 },
   emptySubtext: { color: '#666666', fontSize: 13 },
   
-  // Swipe Action Background Styles
-  swipeActionLeft: {
-    justifyContent: 'center',
-    flex: 1,
-    borderRadius: 20,
-    paddingLeft: 24,
-  },
-  swipeActionRight: {
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-    flex: 1,
-    borderRadius: 20,
-    paddingRight: 24,
-  },
-  swipeText: {
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
+  swipeActionLeft: { justifyContent: 'center', flex: 1, borderRadius: 20, paddingLeft: 24 },
+  swipeActionRight: { justifyContent: 'center', alignItems: 'flex-end', flex: 1, borderRadius: 20, paddingRight: 24 },
+  swipeText: { fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
 
   logCard: { borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', borderWidth: 1 },
   foodInfo: { flex: 1 },
@@ -331,7 +337,7 @@ const styles = StyleSheet.create({
   foodCalories: { alignItems: 'flex-end' },
   caloriesVal: { fontSize: 20, fontWeight: '800' },
   caloriesLbl: { fontSize: 9, fontWeight: '600' },
-  fabContainer: { position: 'absolute', bottom: -35, left: 0, right: 0, height: 140, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 40, zIndex: 10 },
+  fabContainer: { position: 'absolute', bottom: -35, left: 0, right: 0, height: 140, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 50, zIndex: 10 },
   fab: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 25, elevation: 5 },
   fabIcon: { fontSize: 32, color: '#000', fontWeight: '300', marginTop: -2 },
   modalContainer: { flex: 1 },

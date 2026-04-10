@@ -1,9 +1,8 @@
 import { Colors } from '@/constants/theme';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Animated, Easing, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
-// Create an animatable version of the SVG Circle
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type MacroRingProps = {
@@ -32,18 +31,17 @@ function MacroRing({ percent, color, trackColor, label, macroValue, textColor, s
       setDisplayVal(Math.round(v.value));
     });
 
-    // Run both the ring drawing and number counting simultaneously
     Animated.parallel([
       Animated.timing(animatedPercent, {
         toValue: clampedPercent,
-        duration: 1500, // Increased slightly to show off the slow-down
-        easing: Easing.out(Easing.cubic), // <--- THIS CREATES THE DECELERATION EFFECT
+        duration: 1500, 
+        easing: Easing.out(Easing.cubic), 
         useNativeDriver: false, 
       }),
       Animated.timing(animatedMacro, {
         toValue: macroValue || 0,
         duration: 1500,
-        easing: Easing.out(Easing.cubic), // <--- MATCHING DECELERATION
+        easing: Easing.out(Easing.cubic), 
         useNativeDriver: false,
       }),
     ]).start();
@@ -93,10 +91,13 @@ const FAT_GOAL = 70;
 
 export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs: 0, fat: 0 } }: Props) {
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'dark'] || Colors.dark || {}; 
+  const theme = Colors[colorScheme ?? 'dark'] || Colors.dark as any; 
 
   const animatedCals = useRef(new Animated.Value(0)).current;
   const [displayCals, setDisplayCals] = useState(0);
+  
+  // Banner State
+  const [showBanner, setShowBanner] = useState(true);
 
   useEffect(() => {
     const listenerId = animatedCals.addListener((v) => {
@@ -105,8 +106,8 @@ export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs:
 
     Animated.timing(animatedCals, {
       toValue: totals?.calories || 0,
-      duration: 1500, // Match the duration of the rings
-      easing: Easing.out(Easing.cubic), // <--- SLOW DOWN AT THE END FOR CALORIES
+      duration: 1500, 
+      easing: Easing.out(Easing.cubic), 
       useNativeDriver: false,
     }).start();
 
@@ -117,9 +118,33 @@ export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs:
 
   const isOverLimit = displayCals > CALORIE_GOAL;
 
+  // --- DYNAMIC BANNER LOGIC ---
+  let bannerMessage = null;
+  let isActionable = false;
+
+  // If protein progress is significantly behind calorie progress
+  const proteinProgress = (totals?.protein || 0) / PROTEIN_GOAL;
+  const calorieProgress = (totals?.calories || 0) / CALORIE_GOAL;
+
+  if (totals?.calories === 0) {
+    bannerMessage = "Ready to crush today? Log your first meal to get started!";
+  } else if (proteinProgress < calorieProgress - 0.15) {
+    bannerMessage = "Looks like you're behind on protein today. Want a quick fix?";
+    isActionable = true;
+  } else if (isOverLimit) {
+    bannerMessage = "You've hit your daily calorie limit. Hydration is key right now!";
+  }
+
+  const handleAcceptFix = () => {
+    // We will wire this up to automatically inject a shake later!
+    Alert.alert("Quick Fix Triggered", "We will wire this up to log a quick protein shake!");
+    setShowBanner(false);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.mainBg || '#0d0d0d' }]}>
       <Text style={[styles.sectionSubtitle, { color: theme.textSub || '#a0a0a0' }]}>DAILY MOMENTUM</Text>
+      
       <View style={styles.caloriesRow}>
         <View style={styles.caloriesDisplay}>
           <Text style={[styles.caloriesCount, { color: isOverLimit ? (theme.limit || '#ff3b30') : (theme.text || '#ffffff') }, isOverLimit && styles.caloriesOver]}>
@@ -129,11 +154,36 @@ export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs:
         </View>
       </View>
 
+      {/* NEW: DYNAMIC ANNOUNCEMENT BANNER */}
+      {showBanner && bannerMessage && (
+        <View style={[styles.bannerContainer, { backgroundColor: theme.card || '#161616', borderColor: theme.border || '#2a2a2a' }]}>
+          <Text style={[styles.bannerText, { color: theme.text || '#ffffff' }]}>{bannerMessage}</Text>
+          
+          {isActionable && (
+            <View style={styles.bannerActions}>
+              <TouchableOpacity 
+                style={[styles.actionBtn, { backgroundColor: theme.chatUserBg || '#2a2a2a' }]} 
+                onPress={handleAcceptFix}
+              >
+                <Text style={{ color: theme.success || '#39ff14', fontWeight: '800', fontSize: 16 }}>✓</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.actionBtn, { backgroundColor: theme.chatUserBg || '#2a2a2a' }]} 
+                onPress={() => setShowBanner(false)}
+              >
+                <Text style={{ color: theme.limit || '#ff3b30', fontWeight: '800', fontSize: 14 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
       <View style={[styles.macrosCard, { backgroundColor: theme.card || '#161616', shadowColor: '#000' }]}>
         <MacroRing
           percent={((totals?.protein || 0) / PROTEIN_GOAL) * 100}
           color={theme.protein || '#39ff14'} 
-          trackColor={colorScheme === 'light' ? (theme.ringTrack || '#e0e0e0') : (theme.ringTrack1 || '#112211')}
+          trackColor={theme.ringTrack1 || '#112211'}
           label="Protein" 
           macroValue={totals?.protein || 0}
           textColor={theme.text || '#ffffff'} subTextColor={theme.textSub || '#a0a0a0'}
@@ -141,7 +191,7 @@ export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs:
         <MacroRing
           percent={((totals?.carbs || 0) / CARBS_GOAL) * 100}
           color={theme.carbs || '#00d2ff'} 
-          trackColor={colorScheme === 'light' ? (theme.ringTrack || '#e0e0e0') : (theme.ringTrack2 || '#0a1a22')}
+          trackColor={theme.ringTrack2 || '#0a1a22'}
           label="Carbs" 
           macroValue={totals?.carbs || 0}
           textColor={theme.text || '#ffffff'} subTextColor={theme.textSub || '#a0a0a0'}
@@ -149,7 +199,7 @@ export default function MacroHeader({ totals = { calories: 0, protein: 0, carbs:
         <MacroRing
           percent={((totals?.fat || 0) / FAT_GOAL) * 100}
           color={theme.fats || '#ff7300'} 
-          trackColor={colorScheme === 'light' ? (theme.ringTrack || '#e0e0e0') : (theme.ringTrack3 || '#221105')}
+          trackColor={theme.ringTrack3 || '#221105'}
           label="Fats" 
           macroValue={totals?.fat || 0}
           textColor={theme.text || '#ffffff'} subTextColor={theme.textSub || '#a0a0a0'}
@@ -177,7 +227,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   caloriesDisplay: {
     flexDirection: 'row',
@@ -198,9 +248,42 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '500',
   },
-  macrosCard: {
+  
+  // Banner Styles
+  bannerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 12,
+  },
+  bannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  bannerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+macrosCard: {
     borderRadius: 24,
-    padding: 24,
+    
+    // Split the padding here!
+    paddingHorizontal: 24, // Keeps the left/right spacing the same
+    paddingVertical: 22,   // Reduces the top/bottom spacing (adjust this number to taste!)
+    
     flexDirection: 'row',
     justifyContent: 'space-between',
     shadowOffset: { width: 0, height: 10 },

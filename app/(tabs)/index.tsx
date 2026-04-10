@@ -64,7 +64,7 @@ export default function HomeScreen() {
     }));
   };
 
-  const handleDeleteMeal = (mealData: { calories: number; protein: number; carbs: number; fat: number }) => {
+const handleDeleteMeal = (mealData: any) => {
     // Subtract macros when an item is deleted via swipe
     setTotals((prev) => ({
       calories: Math.max(0, prev.calories - mealData.calories),
@@ -72,10 +72,14 @@ export default function HomeScreen() {
       carbs: Math.max(0, prev.carbs - mealData.carbs),
       fat: Math.max(0, prev.fat - mealData.fat),
     }));
+
+    // FIX: Purge the deleted item from the parent state so it doesn't ghost back in
+    if (mealData.id) {
+      setInitialMeals((prev) => prev.filter((meal) => meal.id !== mealData.id));
+    }
   };
 
-  const handleSaveMealToQuickAccess = (mealData: any) => {
-    // Check if it already exists to prevent duplicates
+const handleSaveMealToQuickAccess = (mealData: any) => {
     if (quickLogs.some(log => log.title === mealData.name)) return;
 
     const newItem: QuickLogItem = {
@@ -88,8 +92,12 @@ export default function HomeScreen() {
       type: 'saved'
     };
     
-    // Add to the front of the Quick Access list
     setQuickLogs((prev) => [newItem, ...prev]);
+  };
+
+  // NEW: Function to remove a quick log
+  const handleDeleteQuickLog = (id: string | number) => {
+    setQuickLogs((prev) => prev.filter(log => log.id !== id));
   };
 
   const handleQuickAction = async (item: QuickLogItem) => {
@@ -141,7 +149,11 @@ export default function HomeScreen() {
 
         <MacroHeader totals={totals} />
 
-        <QuickAccess quickLogs={quickLogs} onQuickAction={handleQuickAction} />
+        <QuickAccess 
+          quickLogs={quickLogs} 
+          onQuickAction={handleQuickAction} 
+          onDeleteQuickLog={handleDeleteQuickLog} // ADD THIS LINE
+        />
 
         <View style={styles.feedContainer}>
           <ChatSection 
